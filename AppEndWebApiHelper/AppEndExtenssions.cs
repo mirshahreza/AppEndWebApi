@@ -56,42 +56,42 @@ namespace AppEndWebApiHelper
 			return new ClaimsPrincipal(identity);
 		}
 
-		public static Tuple<string, string> GetControllerAndActionNames(this HttpContext context)
+		public static AppEndWebApiInfo GetAppEndRpcInfo(this HttpContext context)
 		{
 			var routeData = context.GetRouteData();
 			string controllerName = routeData.Values["controller"].ToStringEmpty();
 			string actionName = routeData.Values["action"].ToStringEmpty();
-			return new Tuple<string, string>(controllerName, actionName);
+			return new AppEndWebApiInfo(context.Request.Path.ToString(), controllerName, actionName);
 		}
 
-		public static void AddSuccessHeaders(this HttpContext context, Stopwatch sw, string requestPath, string controllerName, string actionName)
+		public static void AddSuccessHeaders(this HttpContext context, Stopwatch sw, AppEndWebApiInfo appEndWebApiInfo)
 		{
-			AddAppEndStandardHeaders(context, sw, requestPath, controllerName, actionName, StatusCodes.Status200OK, "Status200OK", "OK");
+			AddAppEndStandardHeaders(context, sw, appEndWebApiInfo, StatusCodes.Status200OK, "Status200OK", "OK");
 		}
 
-		public static void AddInternalErrorHeaders(this HttpContext context, Stopwatch sw, Exception ex, string requestPath, string controllerName, string actionName)
+		public static void AddInternalErrorHeaders(this HttpContext context, Stopwatch sw, Exception ex, AppEndWebApiInfo appEndWebApiInfo)
 		{
-			AddAppEndStandardHeaders(context, sw, requestPath, controllerName, actionName, StatusCodes.Status401Unauthorized, "Status401Unauthorized", ex.Message);
+			AddAppEndStandardHeaders(context, sw, appEndWebApiInfo, StatusCodes.Status401Unauthorized, "Status401Unauthorized", ex.Message);
 		}
 
-		public static void AddUnauthorizedAccessErrorHeaders(this HttpContext context, Stopwatch sw, Exception ex, string requestPath, string controllerName, string actionName)
+		public static void AddUnauthorizedAccessErrorHeaders(this HttpContext context, Stopwatch sw, Exception ex, AppEndWebApiInfo appEndWebApiInfo)
 		{
-			AddAppEndStandardHeaders(context, sw, requestPath, controllerName, actionName, StatusCodes.Status401Unauthorized, "Status401Unauthorized", ex.Message);
+			AddAppEndStandardHeaders(context, sw, appEndWebApiInfo, StatusCodes.Status401Unauthorized, "Status401Unauthorized", ex.Message);
 		}
 
-		public static void AddNotFoundErrorHeaders(this HttpContext context, Stopwatch sw, string requestPath)
+		public static void AddNotFoundErrorHeaders(this HttpContext context, Stopwatch sw, AppEndWebApiInfo appEndWebApiInfo)
 		{
-			AddAppEndStandardHeaders(context, sw, requestPath, "", "", StatusCodes.Status404NotFound, "Status404NotFound", "NOK");
+			AddAppEndStandardHeaders(context, sw, appEndWebApiInfo, StatusCodes.Status404NotFound, "Status404NotFound", "NOK");
 		}
 
-		private static void AddAppEndStandardHeaders(this HttpContext context, Stopwatch sw, string requestPath, string controllerName, string actionName, int statusCode, string statusTitle,string message)
+		private static void AddAppEndStandardHeaders(this HttpContext context, Stopwatch sw, AppEndWebApiInfo appEndWebApiInfo, int statusCode, string statusTitle, string message)
 		{
 			sw.Stop();
 			context.Response.Headers.TryAdd("Server", "AppEnd");
-			
-			context.Response.Headers.TryAdd("X-Execution-Path", requestPath);
-			context.Response.Headers.TryAdd("X-Execution-Controller", controllerName);
-			context.Response.Headers.TryAdd("X-Execution-Action", actionName);
+
+			context.Response.Headers.TryAdd("X-Execution-Path", appEndWebApiInfo.RequestPath);
+			context.Response.Headers.TryAdd("X-Execution-Controller", appEndWebApiInfo.ControllerName);
+			context.Response.Headers.TryAdd("X-Execution-Action", appEndWebApiInfo.ActionName);
 			context.Response.Headers.TryAdd("X-Execution-Duration", sw.ElapsedMilliseconds.ToString());
 			context.Response.Headers.TryAdd("X-Execution-User", context.User.Identity?.Name);
 

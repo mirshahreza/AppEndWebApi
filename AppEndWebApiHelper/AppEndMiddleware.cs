@@ -14,19 +14,16 @@ namespace AppEndWebApiHelper
 		private readonly RequestDelegate _next = next;
 		private readonly ILogger<AppEndMiddleware> _logger = logger;
 
-
 		public async Task InvokeAsync(HttpContext context)
 		{
 			Stopwatch sw = Stopwatch.StartNew();
 			var routeData = context.GetRouteData();
 
-			string requestPath = context.Request.Path.ToString();
+			AppEndWebApiInfo appEndWebApiInfo = context.GetAppEndRpcInfo();
 
-			Tuple<string, string> caNames = context.GetControllerAndActionNames();
-
-			if (string.IsNullOrEmpty(caNames.Item1) || string.IsNullOrEmpty(caNames.Item2))
+			if (string.IsNullOrEmpty(appEndWebApiInfo.ControllerName) || string.IsNullOrEmpty(appEndWebApiInfo.ControllerName))
 			{
-				await HandleNotFoundResource(context, sw, requestPath);
+				await HandleNotFoundResource(context, sw, appEndWebApiInfo);
 				return;
 			}
 
@@ -34,14 +31,14 @@ namespace AppEndWebApiHelper
 
 			try
 			{
-				CheckAccess(context, caNames.Item1, caNames.Item2);
+				CheckAccess(context, appEndWebApiInfo);
 
 				// Check cache if the cache is enabled
 
 				context.Response.OnStarting(() =>
 				{
 					context.Response.StatusCode = StatusCodes.Status200OK;
-					context.AddSuccessHeaders(sw, requestPath, caNames.Item1, caNames.Item2);
+					context.AddSuccessHeaders(sw, appEndWebApiInfo);
 					return Task.CompletedTask;
 				});
 
@@ -54,11 +51,11 @@ namespace AppEndWebApiHelper
 			}
 			catch (UnauthorizedAccessException ex)
 			{
-				await HandleUnauthorizedAccessException(context, sw, ex, requestPath, caNames.Item1, caNames.Item2);
+				await HandleUnauthorizedAccessException(context, sw, ex, appEndWebApiInfo);
 			}
 			catch (Exception ex)
 			{
-				await HandleException(context, sw, ex, requestPath, caNames.Item1, caNames.Item2);
+				await HandleException(context, sw, ex, appEndWebApiInfo);
 			}
 			finally
 			{
@@ -66,32 +63,34 @@ namespace AppEndWebApiHelper
 			}
 		}
 
-		private void CheckAccess(HttpContext context, string controllerName, string actionName)
+		private void CheckAccess(HttpContext context, AppEndWebApiInfo appEndWebApiInfo)
 		{
+			var config = AppEndWebApiConfig.FromFile();
+
 			//throw new UnauthorizedAccessException($"Access denied to the {controllerName}::{actionName}.");
 		}
 
-		private async Task HandleException(HttpContext context, Stopwatch sw, Exception ex, string requestPath, string controllerName, string actionName)
+		private async Task HandleException(HttpContext context, Stopwatch sw, Exception ex, AppEndWebApiInfo appEndWebApiInfo)
 		{
-			_logger.LogError(ex, $"Error in {controllerName}::{actionName}: {ex.Message}");
+			_logger.LogError(ex, $"Error in {appEndWebApiInfo.ControllerName}::{appEndWebApiInfo.ActionName}: {ex.Message}");
 			context.Response.StatusCode = StatusCodes.Status500InternalServerError;
-			context.AddInternalErrorHeaders(sw, ex, requestPath, controllerName, actionName);
+			context.AddInternalErrorHeaders(sw, ex, appEndWebApiInfo);
 			context.Response.ContentType = "application/json";
 			await context.Response.WriteAsync("{}");
 		}
-		private async Task HandleUnauthorizedAccessException(HttpContext context, Stopwatch sw, UnauthorizedAccessException ex, string requestPath, string controllerName, string actionName)
+		private async Task HandleUnauthorizedAccessException(HttpContext context, Stopwatch sw, UnauthorizedAccessException ex, AppEndWebApiInfo appEndWebApiInfo)
 		{
-			_logger.LogError(ex, $"Error in {controllerName}::{actionName}: {ex.Message}");
+			_logger.LogError(ex, $"Error in {appEndWebApiInfo.ControllerName}::{appEndWebApiInfo.ActionName}: {ex.Message}");
 			context.Response.StatusCode = StatusCodes.Status401Unauthorized;
-			context.AddUnauthorizedAccessErrorHeaders(sw, ex, requestPath, controllerName, actionName);
+			context.AddUnauthorizedAccessErrorHeaders(sw, ex, appEndWebApiInfo);
 			context.Response.ContentType = "application/json";
 			await context.Response.WriteAsync("{}");
 		}
-		private async Task HandleNotFoundResource(HttpContext context, Stopwatch sw, string requestPath)
+		private async Task HandleNotFoundResource(HttpContext context, Stopwatch sw, AppEndWebApiInfo appEndWebApiInfo)
 		{
-			_logger.LogWarning($"Not found resource: {requestPath}.");
+			_logger.LogWarning($"Not found resource: {appEndWebApiInfo.RequestPath}.");
 			context.Response.StatusCode = StatusCodes.Status404NotFound;
-			context.AddNotFoundErrorHeaders(sw, requestPath);
+			context.AddNotFoundErrorHeaders(sw, appEndWebApiInfo);
 			context.Response.ContentType = "application/json";
 			await context.Response.WriteAsync("{}");
 		}
