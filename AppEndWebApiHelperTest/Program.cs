@@ -1,4 +1,13 @@
 using AppEndWebApiHelper;
+using Serilog;
+
+
+Log.Logger = new LoggerConfiguration()
+	.WriteTo.Console()
+	.WriteTo.File("log.txt",
+		rollingInterval: RollingInterval.Day,
+		rollOnFileSizeLimit: true)
+	.CreateLogger();
 
 var builder = WebApplication.CreateBuilder(args);
 

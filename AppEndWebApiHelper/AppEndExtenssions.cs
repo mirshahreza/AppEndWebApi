@@ -2,6 +2,7 @@
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.Logging;
+using Serilog;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -15,6 +16,23 @@ namespace AppEndWebApiHelper
 {
 	public static class AppEndExtenssions
 	{
+		//public static Serilog.ILogger AppEndLogger
+		//{
+		//	get
+		//	{
+		//		if (Log.Logger == null) 
+		//		{
+		//			Log.Logger = new LoggerConfiguration()
+		//			.WriteTo.Console()
+		//			.WriteTo.File("log.txt",
+		//				rollingInterval: RollingInterval.Day,
+		//				rollOnFileSizeLimit: true)
+		//			.CreateLogger();
+		//		}
+		//		return Log.Logger;
+		//	}
+		//}
+
 		public static ClaimsPrincipal TurnTokenToUser(this HttpContext context, ILogger<AppEndMiddleware> _logger)
 		{
 			if (context.Request.Headers.ContainsKey("token") == false)
@@ -39,7 +57,7 @@ namespace AppEndWebApiHelper
 				}
 				catch
 				{
-					_logger.LogWarning($"Invalid token tried !!!");
+					Log.Warning($"Invalid token tried !!!");
 					return GetNobodyUser();
 				}
 			}
@@ -56,12 +74,10 @@ namespace AppEndWebApiHelper
 			return new ClaimsPrincipal(identity);
 		}
 
-		public static AppEndWebApiInfo GetAppEndRpcInfo(this HttpContext context)
+		public static AppEndWebApiInfo GetAppEndWebApiInfo(this HttpContext context)
 		{
 			var routeData = context.GetRouteData();
-			string controllerName = routeData.Values["controller"].ToStringEmpty();
-			string actionName = routeData.Values["action"].ToStringEmpty();
-			return new AppEndWebApiInfo(context.Request.Path.ToString(), controllerName, actionName);
+			return new AppEndWebApiInfo(context.Request.Path.ToString(), routeData.Values["controller"].ToStringEmpty(), routeData.Values["action"].ToStringEmpty());
 		}
 
 		public static void AddSuccessHeaders(this HttpContext context, Stopwatch sw, AppEndWebApiInfo appEndWebApiInfo)

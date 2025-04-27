@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
+using System.Text.Json;
 using System.Threading.Tasks;
 
 namespace AppEndWebApiHelper
@@ -17,23 +18,34 @@ namespace AppEndWebApiHelper
 		public CacheLevel CacheLevel { get; set; } = CacheLevel.None;
 
 		public LogLevel LogLevel { get; set; } = LogLevel.None;
-
-		public static AppEndWebApiConfig DefaultConfig()
-		{
-			return new AppEndWebApiConfig();
-		}
-
-		public static AppEndWebApiConfig FromFile()
-		{
-			return new AppEndWebApiConfig();
-		}
-
 	}
 
 	public static class AppEndWebApiConfigExtensions
 	{
-		public static void WriteConfig(this AppEndWebApiConfig config)
+		public static void WriteConfig(this AppEndWebApiInfo appEndWebApiInfo,AppEndWebApiConfig config)
 		{
+			string configFileName = appEndWebApiInfo.GetConfigFileName();
+			if (!Directory.Exists(configFileName))
+			{
+				Directory.CreateDirectory(configFileName);
+			}
+			var json = JsonSerializer.Serialize(config, new JsonSerializerOptions { WriteIndented = true });
+			File.WriteAllText(configFileName, json, Encoding.UTF8);
+		}
+		public static AppEndWebApiConfig ReadConfig(AppEndWebApiInfo appEndWebApiInfo)
+		{
+			string configFileName = appEndWebApiInfo.GetConfigFileName();
+			if (File.Exists(configFileName))
+			{
+				var json = File.ReadAllText(configFileName, Encoding.UTF8);
+				return JsonSerializer.Deserialize<AppEndWebApiConfig>(json) ?? new AppEndWebApiConfig();
+			}
+			return new AppEndWebApiConfig();
+		}
+
+		public static string GetConfigFileName(this AppEndWebApiInfo appEndWebApiInfo)
+		{
+			return $"workspace/server/{appEndWebApiInfo.ControllerName}.json";
 		}
 	}
 

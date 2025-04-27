@@ -10,8 +10,4 @@
     <ProjectReference Include="..\AppEndWebApiHelper\AppEndWebApiHelper.csproj" />
   </ItemGroup>
 
-  <ItemGroup>
-    <Folder Include="workspace\" />
-  </ItemGroup>
-
 </Project>
