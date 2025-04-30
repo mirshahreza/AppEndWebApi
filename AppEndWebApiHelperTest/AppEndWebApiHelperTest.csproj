@@ -10,4 +10,8 @@
     <ProjectReference Include="..\AppEndWebApiHelper\AppEndWebApiHelper.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <Folder Include="workspace\log\" />
+  </ItemGroup>
+
 </Project>

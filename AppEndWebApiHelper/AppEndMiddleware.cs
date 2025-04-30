@@ -1,19 +1,13 @@
 ﻿using AppEndCommon;
 using Microsoft.AspNetCore.Http;
-using Microsoft.AspNetCore.Routing;
-using Microsoft.Extensions.Logging;
 using Serilog;
 using System.Diagnostics;
-using System.Security.Authentication;
-using System.Security.Claims;
-using System.Text.Json;
 
 namespace AppEndWebApiHelper
 {
-	public class AppEndMiddleware(RequestDelegate next, ILogger<AppEndMiddleware> logger)
+	public class AppEndMiddleware(RequestDelegate next)
 	{
 		private readonly RequestDelegate _next = next;
-		private readonly ILogger<AppEndMiddleware> _logger = logger;
 
 		private AppEndWebApiInfo _appEndWebApiInfo;
 		private AppEndWebApiConfig _appEndWebApiConfig;
@@ -21,19 +15,23 @@ namespace AppEndWebApiHelper
 
 		public async Task InvokeAsync(HttpContext context)
 		{
-			Log.Information("AppEnd middleware started...");
-
 			Stopwatch sw = Stopwatch.StartNew();
 			_appEndWebApiInfo = context.GetAppEndWebApiInfo();
+			bool result = true;
+			string message = "";
+			string actor = "";
+			string rowId = "";
 
 			if (string.IsNullOrEmpty(_appEndWebApiInfo.ControllerName) || string.IsNullOrEmpty(_appEndWebApiInfo.ControllerName))
 			{
-				await HandleNotFoundResource(context, sw);
+				sw.Stop();
+				await HandleNotFoundResource(context, sw.ElapsedMilliseconds);
 				return;
 			}
 
 			_appEndWebApiConfig = AppEndWebApiConfigExtensions.ReadConfig(_appEndWebApiInfo);
-			context.User = context.TurnTokenToUser(_logger);
+			context.User = context.TurnTokenToUser();
+			actor = context.User.Identity?.Name?.ToString() ?? "";
 
 			try
 			{
@@ -44,12 +42,14 @@ namespace AppEndWebApiHelper
 				context.Response.OnStarting(() =>
 				{
 					context.Response.StatusCode = StatusCodes.Status200OK;
-					context.AddSuccessHeaders(sw, _appEndWebApiInfo);
+					context.AddSuccessHeaders(sw.ElapsedMilliseconds, _appEndWebApiInfo);
 					return Task.CompletedTask;
 				});
 
 				context.Response.OnCompleted(() =>
 				{
+					sw.Stop();
+					rowId = context.Items["RowId"]?.ToString() ?? "";
 					return Task.CompletedTask;
 				});
 
@@ -57,15 +57,25 @@ namespace AppEndWebApiHelper
 			}
 			catch (UnauthorizedAccessException ex)
 			{
-				await HandleUnauthorizedAccessException(context, sw, ex);
+				sw.Stop();
+				result = false;
+				message = ex.Message;
+				rowId = context.Items["RowId"]?.ToString() ?? "";
+				await HandleUnauthorizedAccessException(context, sw.ElapsedMilliseconds, ex);
 			}
 			catch (Exception ex)
 			{
-				await HandleException(context, sw, ex);
+				sw.Stop();
+				result = false;
+				message = ex.Message;
+				rowId = context.Items["RowId"]?.ToString() ?? "";
+				await HandleException(context, sw.ElapsedMilliseconds, ex);
 			}
 			finally
 			{
-				await Log.CloseAndFlushAsync();
+				sw.Stop();
+				rowId = context.Items["RowId"]?.ToString() ?? "";
+				AppEndLogger.LogActivity(_appEndWebApiInfo.ControllerName, _appEndWebApiInfo.ActionName, rowId, result, message, sw.ElapsedMilliseconds.ToIntSafe(), context.GetClientAgent(), context.GetClientIp(), actor);
 			}
 		}
 
@@ -75,27 +85,27 @@ namespace AppEndWebApiHelper
 			//throw new UnauthorizedAccessException($"Access denied to the {controllerName}::{actionName}.");
 		}
 
-		private async Task HandleException(HttpContext context, Stopwatch sw, Exception ex)
+		private async Task HandleException(HttpContext context, long duration, Exception ex)
 		{
-			_logger.LogError(ex, $"Error in {_appEndWebApiInfo.ControllerName}::{_appEndWebApiInfo.ActionName}: {ex.Message}");
+			AppEndLogger.LogError($"Error in {_appEndWebApiInfo.ControllerName}::{_appEndWebApiInfo.ActionName}: {ex.Message}");
 			context.Response.StatusCode = StatusCodes.Status500InternalServerError;
-			context.AddInternalErrorHeaders(sw, ex, _appEndWebApiInfo);
+			context.AddInternalErrorHeaders(duration, ex, _appEndWebApiInfo);
 			context.Response.ContentType = "application/json";
 			await context.Response.WriteAsync("{}");
 		}
-		private async Task HandleUnauthorizedAccessException(HttpContext context, Stopwatch sw, UnauthorizedAccessException ex)
+		private async Task HandleUnauthorizedAccessException(HttpContext context, long duration, UnauthorizedAccessException ex)
 		{
-			_logger.LogError(ex, $"Error in {_appEndWebApiInfo.ControllerName}::{_appEndWebApiInfo.ActionName}: {ex.Message}");
+			AppEndLogger.LogError($"Error in {_appEndWebApiInfo.ControllerName}::{_appEndWebApiInfo.ActionName}: {ex.Message}");
 			context.Response.StatusCode = StatusCodes.Status401Unauthorized;
-			context.AddUnauthorizedAccessErrorHeaders(sw, ex, _appEndWebApiInfo);
+			context.AddUnauthorizedAccessErrorHeaders(duration, ex, _appEndWebApiInfo);
 			context.Response.ContentType = "application/json";
 			await context.Response.WriteAsync("{}");
 		}
-		private async Task HandleNotFoundResource(HttpContext context, Stopwatch sw)
+		private async Task HandleNotFoundResource(HttpContext context, long duration)
 		{
-			_logger.LogWarning($"Not found resource: {_appEndWebApiInfo.RequestPath}.");
+			AppEndLogger.LogError($"Error in {_appEndWebApiInfo.ControllerName}::{_appEndWebApiInfo.ActionName}: Not found resource");
 			context.Response.StatusCode = StatusCodes.Status404NotFound;
-			context.AddNotFoundErrorHeaders(sw, _appEndWebApiInfo);
+			context.AddNotFoundErrorHeaders(duration, _appEndWebApiInfo);
 			context.Response.ContentType = "application/json";
 			await context.Response.WriteAsync("{}");
 		}

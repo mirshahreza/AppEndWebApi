@@ -20,6 +20,12 @@ namespace NS1
 		public ActionResult M1([ModelBinder(typeof(AppEndJsonBinder))] int a, [ModelBinder(typeof(AppEndJsonBinder))] int b, [ModelBinder(typeof(AppEndJsonBinder))] JsonElement c)
 		{
 			if (c.ValueKind == JsonValueKind.Undefined) throw new ArgumentNullException(nameof(c));
+			//throw new NotImplementedException();
+			
+			System.Threading.Thread.Sleep(3000);
+
+			HttpContext.Items["RowId"] = 1000;
+
 			return Ok(c);
 		}
 
@@ -27,8 +33,6 @@ namespace NS1
 		public string? M2([ModelBinder(typeof(AppEndJsonBinder))] int a, [ModelBinder(typeof(AppEndJsonBinder))] int b, [ModelBinder(typeof(AppEndJsonBinder))] JsonElement c)
 		{
 			if (c.ValueKind == JsonValueKind.Undefined) throw new ArgumentNullException(nameof(c));
-
-
 			return _httpContextAccessor.HttpContext?.User.Identity?.Name?.ToStringEmpty();
 		}
 	}

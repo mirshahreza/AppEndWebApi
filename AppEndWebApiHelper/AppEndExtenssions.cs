@@ -16,24 +16,7 @@ namespace AppEndWebApiHelper
 {
 	public static class AppEndExtenssions
 	{
-		//public static Serilog.ILogger AppEndLogger
-		//{
-		//	get
-		//	{
-		//		if (Log.Logger == null) 
-		//		{
-		//			Log.Logger = new LoggerConfiguration()
-		//			.WriteTo.Console()
-		//			.WriteTo.File("log.txt",
-		//				rollingInterval: RollingInterval.Day,
-		//				rollOnFileSizeLimit: true)
-		//			.CreateLogger();
-		//		}
-		//		return Log.Logger;
-		//	}
-		//}
-
-		public static ClaimsPrincipal TurnTokenToUser(this HttpContext context, ILogger<AppEndMiddleware> _logger)
+		public static ClaimsPrincipal TurnTokenToUser(this HttpContext context)
 		{
 			if (context.Request.Headers.ContainsKey("token") == false)
 			{
@@ -57,7 +40,7 @@ namespace AppEndWebApiHelper
 				}
 				catch
 				{
-					Log.Warning($"Invalid token tried !!!");
+					AppEndLogger.LogWarning($"Invalid token tried !!!");
 					return GetNobodyUser();
 				}
 			}
@@ -80,41 +63,50 @@ namespace AppEndWebApiHelper
 			return new AppEndWebApiInfo(context.Request.Path.ToString(), routeData.Values["controller"].ToStringEmpty(), routeData.Values["action"].ToStringEmpty());
 		}
 
-		public static void AddSuccessHeaders(this HttpContext context, Stopwatch sw, AppEndWebApiInfo appEndWebApiInfo)
+		public static void AddSuccessHeaders(this HttpContext context, long duration, AppEndWebApiInfo appEndWebApiInfo)
 		{
-			AddAppEndStandardHeaders(context, sw, appEndWebApiInfo, StatusCodes.Status200OK, "Status200OK", "OK");
+			AddAppEndStandardHeaders(context, duration, appEndWebApiInfo, StatusCodes.Status200OK, "Status200OK", "OK");
 		}
 
-		public static void AddInternalErrorHeaders(this HttpContext context, Stopwatch sw, Exception ex, AppEndWebApiInfo appEndWebApiInfo)
+		public static void AddInternalErrorHeaders(this HttpContext context, long duration, Exception ex, AppEndWebApiInfo appEndWebApiInfo)
 		{
-			AddAppEndStandardHeaders(context, sw, appEndWebApiInfo, StatusCodes.Status401Unauthorized, "Status401Unauthorized", ex.Message);
+			AddAppEndStandardHeaders(context, duration, appEndWebApiInfo, StatusCodes.Status401Unauthorized, "Status401Unauthorized", ex.Message);
 		}
 
-		public static void AddUnauthorizedAccessErrorHeaders(this HttpContext context, Stopwatch sw, Exception ex, AppEndWebApiInfo appEndWebApiInfo)
+		public static void AddUnauthorizedAccessErrorHeaders(this HttpContext context, long duration, Exception ex, AppEndWebApiInfo appEndWebApiInfo)
 		{
-			AddAppEndStandardHeaders(context, sw, appEndWebApiInfo, StatusCodes.Status401Unauthorized, "Status401Unauthorized", ex.Message);
+			AddAppEndStandardHeaders(context, duration, appEndWebApiInfo, StatusCodes.Status401Unauthorized, "Status401Unauthorized", ex.Message);
 		}
 
-		public static void AddNotFoundErrorHeaders(this HttpContext context, Stopwatch sw, AppEndWebApiInfo appEndWebApiInfo)
+		public static void AddNotFoundErrorHeaders(this HttpContext context, long duration, AppEndWebApiInfo appEndWebApiInfo)
 		{
-			AddAppEndStandardHeaders(context, sw, appEndWebApiInfo, StatusCodes.Status404NotFound, "Status404NotFound", "NOK");
+			AddAppEndStandardHeaders(context, duration, appEndWebApiInfo, StatusCodes.Status404NotFound, "Status404NotFound", "NOK");
 		}
 
-		private static void AddAppEndStandardHeaders(this HttpContext context, Stopwatch sw, AppEndWebApiInfo appEndWebApiInfo, int statusCode, string statusTitle, string message)
+		private static void AddAppEndStandardHeaders(this HttpContext context, long duration, AppEndWebApiInfo appEndWebApiInfo, int statusCode, string statusTitle, string message)
 		{
-			sw.Stop();
 			context.Response.Headers.TryAdd("Server", "AppEnd");
 
 			context.Response.Headers.TryAdd("X-Execution-Path", appEndWebApiInfo.RequestPath);
 			context.Response.Headers.TryAdd("X-Execution-Controller", appEndWebApiInfo.ControllerName);
 			context.Response.Headers.TryAdd("X-Execution-Action", appEndWebApiInfo.ActionName);
-			context.Response.Headers.TryAdd("X-Execution-Duration", sw.ElapsedMilliseconds.ToString());
+			context.Response.Headers.TryAdd("X-Execution-Duration", duration.ToString());
 			context.Response.Headers.TryAdd("X-Execution-User", context.User.Identity?.Name);
 
 			context.Response.Headers.TryAdd("X-Result-StatusCode", statusCode.ToString());
 			context.Response.Headers.TryAdd("X-Result-StatusTitle", statusTitle);
 			context.Response.Headers.TryAdd("X-Result-Message", message);
 		}
+
+		public static string GetClientIp(this HttpContext context)
+		{
+			return context.Connection.RemoteIpAddress.MapToIPv4().ToString();
+		}
+		public static string GetClientAgent(this HttpContext context)
+		{
+			return context.Request.Headers["User-Agent"].ToString();
+		}
+
 
 
 	}
