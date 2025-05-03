@@ -11,10 +11,8 @@ app.UseHttpsRedirection();
 app.UseAuthorization();
 app.MapControllers();
 
-// todo : implement logger as a middleware
 AppEndLogger.SetupLoggers();
 
-// todo : implement as separated metadate / access ... middle wares
 app.UseMiddleware<AppEndMiddleware>();
 
 
