@@ -37,7 +37,8 @@ namespace AppEndWebApiHelper
 			{
 				CheckAccess(context);
 
-				// Check cache if the cache is enabled
+				// todo : Handle Cache if needed (cache configuration / expiration)
+				// 
 
 				context.Response.OnStarting(() =>
 				{
