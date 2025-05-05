@@ -22,7 +22,7 @@ namespace NS1
 			if (c.ValueKind == JsonValueKind.Undefined) throw new ArgumentNullException(nameof(c));
 			//throw new NotImplementedException();
 			
-			System.Threading.Thread.Sleep(3000);
+			Thread.Sleep(3000);
 
 			HttpContext.Items["RowId"] = 1000;
 

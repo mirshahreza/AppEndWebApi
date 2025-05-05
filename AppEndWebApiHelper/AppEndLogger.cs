@@ -8,6 +8,7 @@ using System.Data;
 using Newtonsoft.Json.Linq;
 using System.Reflection;
 using AppEndCommon;
+using Microsoft.AspNetCore.Http;
 
 namespace AppEndWebApiHelper
 {
@@ -89,10 +90,10 @@ namespace AppEndWebApiHelper
 			Log.Warning(message);
 		}
 
-		public static void LogActivity(string controller, string method, string commadId, bool result, string message, int duration, string clientAgent, string clientIp, string actor)
+		public static void LogActivity(HttpContext context, UserServerObject uso, ApiInfo apiInfo, string commadId, bool result, string message, int duration)
 		{
-			Log.Logger.Verbose("{Controller}{Method}{RowId}{Result}{Message}{Duration}{ClientAgent}{ClientIp}{EventBy}{EventOn}",
-				controller, method, commadId, result, message, duration, clientAgent, clientIp, actor, DateTime.Now);
+			Log.Logger.Verbose("{Controller}{Method}{RowId}{Result}{Message}{Duration}{ClientAgent}{ClientIp}{EventById}{EventByName}{EventOn}",
+				apiInfo.ControllerName, apiInfo.ActionName, commadId, result, message, duration, context.GetClientAgent(), context.GetClientIp(), uso.Id, uso.UserName, DateTime.Now);
 		}
 
 		private static string GetSerilogConnectionString()
@@ -133,7 +134,8 @@ namespace AppEndWebApiHelper
 				new SqlColumn() { ColumnName = "Duration", DataType = SqlDbType.Int },
 				new SqlColumn() { ColumnName = "ClientAgent", DataType = SqlDbType.NVarChar, DataLength = 256 },
 				new SqlColumn() { ColumnName = "ClientIp", DataType = SqlDbType.VarChar, DataLength = 32 },
-				new SqlColumn() { ColumnName = "EventBy", DataType = SqlDbType.NVarChar, DataLength = 64 },
+				new SqlColumn() { ColumnName = "EventById", DataType = SqlDbType.Int },
+				new SqlColumn() { ColumnName = "EventByName", DataType = SqlDbType.NVarChar, DataLength = 64 },
 				new SqlColumn() { ColumnName = "EventOn", DataType = SqlDbType.DateTime },
 			];
 

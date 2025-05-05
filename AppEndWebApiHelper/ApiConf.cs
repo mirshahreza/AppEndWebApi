@@ -1,4 +1,6 @@
-﻿using System;
+﻿using AppEndCommon;
+using Microsoft.Extensions.Caching.Memory;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -11,18 +13,30 @@ namespace AppEndWebApiHelper
 	{
 		public CheckAccessLevel CheckAccessLevel { get; set; } = CheckAccessLevel.CheckAccessRules;
 
-		public List<string>? AllowedRoles { get; set; }
-		public List<string>? AllowedUsers { get; set; }
-		public List<string>? DeniedRoles { get; set; }
-		public List<string>? DeniedUsers { get; set; }
+		public List<int>? AllowedRoles { get; set; }
+		public List<int>? AllowedUsers { get; set; }
+		public List<int>? DeniedRoles { get; set; }
+		public List<int>? DeniedUsers { get; set; }
 
 		public CacheLevel CacheLevel { get; set; } = CacheLevel.None;
+		public int CacheSeconds { get; set; } = 0;
 
 		public bool LogEnabled { get; set; } = true;
 	}
 
 	public static class AppEndWebApiConfigExtensions
 	{
+		public static MemoryCacheEntryOptions GetCacheOptions(this ApiConf apiConf)
+		{
+			return new() { AbsoluteExpirationRelativeToNow = TimeSpan.FromSeconds(apiConf.CacheSeconds) };
+		}
+
+
+		public static string GetCacheKey(this ApiInfo apiInfo, ApiConf apiConf, UserServerObject uso)
+		{
+			return $"{apiInfo.ControllerName}_{apiInfo.ActionName}{(apiConf.CacheLevel == CacheLevel.PerUser ? "_" + uso.UserName : "")}";
+		}
+
 		public static void WriteConfig(this ApiInfo appEndWebApiInfo,ApiConf config)
 		{
 			string configFileName = appEndWebApiInfo.GetConfigFileName();

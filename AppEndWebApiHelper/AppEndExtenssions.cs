@@ -16,7 +16,7 @@ namespace AppEndWebApiHelper
 {
 	public static class AppEndExtenssions
 	{
-		public static ClaimsPrincipal TurnTokenToClaimsPrincipal(this HttpContext context)
+		public static ClaimsPrincipal ToClaimsPrincipal(this HttpContext context)
 		{
 			if (context.Request.Headers.ContainsKey("token") == false)
 			{
@@ -30,10 +30,10 @@ namespace AppEndWebApiHelper
 					JsonElement jo = t.ToJsonElementByBuiltIn();
 					var claims = new List<Claim>
 					{
-						new Claim("Id", "65423"),
-						new Claim(ClaimTypes.Name, "TestUser"),
-						new Claim(ClaimTypes.Role, "User"),
-						new Claim(ClaimTypes.UserData, "CustomValue")
+						new("Id", ""),
+						new(ClaimTypes.Name, "TestUser"),
+						new(ClaimTypes.Role, "User"),
+						new(ClaimTypes.UserData, "CustomValue")
 					};
 					var identity = new ClaimsIdentity(claims, "AppEndAuth");
 					return new ClaimsPrincipal(identity);
@@ -50,22 +50,18 @@ namespace AppEndWebApiHelper
 		{
 			UserServerObject user = new()
 			{
-				Id = claimsPrincipal.FindFirst("Id")?.Value?.ToStringEmpty() ?? "",
-				UserName = claimsPrincipal.FindFirst(ClaimTypes.Name)?.Value.ToStringEmpty() ?? ""
+				Id = claimsPrincipal.FindFirst("Id")?.Value.ToIntSafe(0) ?? 0,
+				UserName = claimsPrincipal.FindFirst(ClaimTypes.Name)?.Value.ToStringEmpty() ?? "nobody"
 			};
 			if (claimsPrincipal.Identity is not null && claimsPrincipal.Identity.IsAuthenticated)
 			{
 				List<string> roles = claimsPrincipal.FindFirst(ClaimTypes.Name)?.Value.ToStringEmpty().Split(",").ToList() ?? [];
-				roles.ForEach(r => user.Roles.Add(new Role() { Id = "-1", RoleName = r, MoreInfo = [] }));
-
-				//user.ExtraInfo = claimsPrincipal.FindFirst(ClaimTypes.UserData)?.Value.ToStringEmpty();
+				roles.ForEach(r => user.Roles.Add(new Role() { Id = r.ToIntSafe(), RoleName = "", Data = claimsPrincipal.FindFirst(ClaimTypes.UserData)?.Value.ToJsonObjectByBuiltIn() }));
 			}
 			else
 			{
-				user.Id = "-1";
-				user.UserName = "Nobody";
 				user.Roles = [];
-				user.MoreInfo = [];
+				user.Data = [];
 			}
 			return user;
 		}
@@ -75,8 +71,8 @@ namespace AppEndWebApiHelper
 		{
 			var claims = new List<Claim>
 					{
-						new Claim("Id", "-1"),
-						new Claim(ClaimTypes.Name, "Nobody")
+						new Claim("Id", "0"),
+						new Claim(ClaimTypes.Name, "nobody")
 					};
 			var identity = new ClaimsIdentity(claims, "AppEndAuth");
 			return new ClaimsPrincipal(identity);

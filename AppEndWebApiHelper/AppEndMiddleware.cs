@@ -1,7 +1,9 @@
 ﻿using AppEndCommon;
 using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.Caching.Memory;
 using Serilog;
 using System.Diagnostics;
+using System.Text;
 
 namespace AppEndWebApiHelper
 {
@@ -30,19 +32,30 @@ namespace AppEndWebApiHelper
 				return;
 			}
 
+			context.User = context.ToClaimsPrincipal();
 			_apiConf = _apiInfo.ReadConfig();
-			context.User = context.TurnTokenToClaimsPrincipal();
 			_user = context.User.ToUserServerObject();
 			actorUserName = context.User.Identity?.Name?.ToString() ?? "";
 
 			try
 			{
-				if (!HasAccess(context)) throw new UnauthorizedAccessException($"Access denied to the {_apiInfo.ControllerName}::{_apiInfo.ActionName}.");
+				if (!HasAccess(context))
+				{
+					throw new UnauthorizedAccessException($"Access denied to the {_apiInfo.ControllerName}::{_apiInfo.ActionName}.");
+				}
 
-
-
-				// todo : Handle Cache if needed (cache configuration / expiration)
-				// 
+				if ((_apiConf.CacheLevel == CacheLevel.AllUsers || _apiConf.CacheLevel == CacheLevel.PerUser) && _apiConf.CacheSeconds > 0)
+				{
+					ExtMemory.SharedMemoryCache.TryGetValue(_apiInfo.GetCacheKey(_apiConf, _user), out CacheObject? cacheObject);
+					if (cacheObject is not null) 
+					{
+						context.Response.StatusCode = StatusCodes.Status200OK;
+						context.Response.ContentType = cacheObject.ContentType;
+						context.Response.Headers.Add("X-Cache", "HIT");
+						await context.Response.WriteAsync(cacheObject.Content);
+						return;
+					}
+				}
 
 				context.Response.OnStarting(() =>
 				{
@@ -55,6 +68,18 @@ namespace AppEndWebApiHelper
 				{
 					sw.Stop();
 					rowId = context.Items["RowId"]?.ToString() ?? "";
+
+					var originalBodyStream = context.Response.Body;
+					using (var memoryStream = new MemoryStream())
+					{
+						context.Response.Body = memoryStream;
+						memoryStream.Position = 0;
+						string responseBody = Encoding.UTF8.GetString(memoryStream.ToArray());
+						context.Response.Body = originalBodyStream;
+						CacheObject cacheObject = new() { Content = responseBody, ContentType = context.Response.ContentType };
+						ExtMemory.SharedMemoryCache.Set(_apiInfo.GetCacheKey(_apiConf, _user), cacheObject, _apiConf.GetCacheOptions());
+					}
+
 					return Task.CompletedTask;
 				});
 
@@ -80,9 +105,7 @@ namespace AppEndWebApiHelper
 			{
 				sw.Stop();
 				rowId = context.Items["RowId"]?.ToString() ?? "";
-				if (_apiConf.LogEnabled)
-					AppEndLogger.LogActivity(_apiInfo.ControllerName, _apiInfo.ActionName, rowId, result, message, sw.ElapsedMilliseconds.ToIntSafe(), 
-						context.GetClientAgent(), context.GetClientIp(), actorUserName);
+				if (_apiConf.LogEnabled) AppEndLogger.LogActivity(context, _user, _apiInfo, rowId, result, message, sw.ElapsedMilliseconds.ToIntSafe());
 			}
 		}
 
@@ -98,12 +121,12 @@ namespace AppEndWebApiHelper
 			if (_user.Roles is not null && _user.Roles.Any(i => i.IsPubKey == true)) return true;
 
 			// check for denies
-			if (_apiConf.DeniedUsers.ContainsIgnoreCase(_user.Id)) return false;
-			if (_apiConf.DeniedRoles?.Count > 0 && _user.Roles?.Count > 0 && _apiConf.DeniedRoles.HasIntersect([.. _user.Roles?.Select(i => i.Id) ?? []])) return false;
+			if (_apiConf.DeniedUsers is not null && _apiConf.DeniedUsers.Contains(_user.Id)) return false;
+			if (_apiConf.DeniedRoles?.Count > 0 && _user.Roles?.Count > 0 && _apiConf.DeniedRoles.HasIntersect(_user.Roles?.Select(i => i.Id).ToList())) return false;
 
 			// check for access
-			if (_apiConf.AllowedRoles.HasIntersect([.. _user.Roles?.Select(i => i.Id) ?? []])) return true;
-			if (_apiConf.AllowedUsers.ContainsIgnoreCase(_user.Id)) return true;
+			if (_apiConf.AllowedRoles.HasIntersect(_user.Roles?.Select(i => i.Id).ToList())) return true;
+			if (_apiConf.AllowedUsers is not null && _apiConf.AllowedUsers.Contains(_user.Id)) return true;
 
 			return false;
 		}
