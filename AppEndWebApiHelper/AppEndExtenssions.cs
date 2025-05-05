@@ -16,7 +16,7 @@ namespace AppEndWebApiHelper
 {
 	public static class AppEndExtenssions
 	{
-		public static ClaimsPrincipal TurnTokenToUser(this HttpContext context)
+		public static ClaimsPrincipal TurnTokenToClaimsPrincipal(this HttpContext context)
 		{
 			if (context.Request.Headers.ContainsKey("token") == false)
 			{
@@ -46,6 +46,31 @@ namespace AppEndWebApiHelper
 			}
 		}
 
+		public static UserServerObject ToUserServerObject(this ClaimsPrincipal claimsPrincipal)
+		{
+			UserServerObject user = new()
+			{
+				Id = claimsPrincipal.FindFirst("Id")?.Value?.ToStringEmpty() ?? "",
+				UserName = claimsPrincipal.FindFirst(ClaimTypes.Name)?.Value.ToStringEmpty() ?? ""
+			};
+			if (claimsPrincipal.Identity is not null && claimsPrincipal.Identity.IsAuthenticated)
+			{
+				List<string> roles = claimsPrincipal.FindFirst(ClaimTypes.Name)?.Value.ToStringEmpty().Split(",").ToList() ?? [];
+				roles.ForEach(r => user.Roles.Add(new Role() { Id = "-1", RoleName = r, MoreInfo = [] }));
+
+				//user.ExtraInfo = claimsPrincipal.FindFirst(ClaimTypes.UserData)?.Value.ToStringEmpty();
+			}
+			else
+			{
+				user.Id = "-1";
+				user.UserName = "Nobody";
+				user.Roles = [];
+				user.MoreInfo = [];
+			}
+			return user;
+		}
+
+
 		public static ClaimsPrincipal GetNobodyUser()
 		{
 			var claims = new List<Claim>
@@ -57,33 +82,33 @@ namespace AppEndWebApiHelper
 			return new ClaimsPrincipal(identity);
 		}
 
-		public static AppEndWebApiInfo GetAppEndWebApiInfo(this HttpContext context)
+		public static ApiInfo GetAppEndWebApiInfo(this HttpContext context)
 		{
 			var routeData = context.GetRouteData();
-			return new AppEndWebApiInfo(context.Request.Path.ToString(), routeData.Values["controller"].ToStringEmpty(), routeData.Values["action"].ToStringEmpty());
+			return new ApiInfo(context.Request.Path.ToString(), routeData.Values["controller"].ToStringEmpty(), routeData.Values["action"].ToStringEmpty());
 		}
 
-		public static void AddSuccessHeaders(this HttpContext context, long duration, AppEndWebApiInfo appEndWebApiInfo)
+		public static void AddSuccessHeaders(this HttpContext context, long duration, ApiInfo appEndWebApiInfo)
 		{
 			AddAppEndStandardHeaders(context, duration, appEndWebApiInfo, StatusCodes.Status200OK, "Status200OK", "OK");
 		}
 
-		public static void AddInternalErrorHeaders(this HttpContext context, long duration, Exception ex, AppEndWebApiInfo appEndWebApiInfo)
+		public static void AddInternalErrorHeaders(this HttpContext context, long duration, Exception ex, ApiInfo appEndWebApiInfo)
 		{
 			AddAppEndStandardHeaders(context, duration, appEndWebApiInfo, StatusCodes.Status401Unauthorized, "Status401Unauthorized", ex.Message);
 		}
 
-		public static void AddUnauthorizedAccessErrorHeaders(this HttpContext context, long duration, Exception ex, AppEndWebApiInfo appEndWebApiInfo)
+		public static void AddUnauthorizedAccessErrorHeaders(this HttpContext context, long duration, Exception ex, ApiInfo appEndWebApiInfo)
 		{
 			AddAppEndStandardHeaders(context, duration, appEndWebApiInfo, StatusCodes.Status401Unauthorized, "Status401Unauthorized", ex.Message);
 		}
 
-		public static void AddNotFoundErrorHeaders(this HttpContext context, long duration, AppEndWebApiInfo appEndWebApiInfo)
+		public static void AddNotFoundErrorHeaders(this HttpContext context, long duration, ApiInfo appEndWebApiInfo)
 		{
 			AddAppEndStandardHeaders(context, duration, appEndWebApiInfo, StatusCodes.Status404NotFound, "Status404NotFound", "NOK");
 		}
 
-		private static void AddAppEndStandardHeaders(this HttpContext context, long duration, AppEndWebApiInfo appEndWebApiInfo, int statusCode, string statusTitle, string message)
+		private static void AddAppEndStandardHeaders(this HttpContext context, long duration, ApiInfo appEndWebApiInfo, int statusCode, string statusTitle, string message)
 		{
 			context.Response.Headers.TryAdd("Server", "AppEnd");
 

@@ -7,9 +7,10 @@ using System.Threading.Tasks;
 
 namespace AppEndWebApiHelper
 {
-	public record AppEndWebApiConfig
+	public record ApiConf
 	{
-		public bool CheckAccess { get; set; } = true;
+		public CheckAccessLevel CheckAccessLevel { get; set; } = CheckAccessLevel.CheckAccessRules;
+
 		public List<string>? AllowedRoles { get; set; }
 		public List<string>? AllowedUsers { get; set; }
 		public List<string>? DeniedRoles { get; set; }
@@ -17,12 +18,12 @@ namespace AppEndWebApiHelper
 
 		public CacheLevel CacheLevel { get; set; } = CacheLevel.None;
 
-		public LogLevel LogLevel { get; set; } = LogLevel.None;
+		public bool LogEnabled { get; set; } = true;
 	}
 
 	public static class AppEndWebApiConfigExtensions
 	{
-		public static void WriteConfig(this AppEndWebApiInfo appEndWebApiInfo,AppEndWebApiConfig config)
+		public static void WriteConfig(this ApiInfo appEndWebApiInfo,ApiConf config)
 		{
 			string configFileName = appEndWebApiInfo.GetConfigFileName();
 			if (!Directory.Exists(configFileName))
@@ -32,20 +33,20 @@ namespace AppEndWebApiHelper
 			var json = JsonSerializer.Serialize(config, new JsonSerializerOptions { WriteIndented = true });
 			File.WriteAllText(configFileName, json, Encoding.UTF8);
 		}
-		public static AppEndWebApiConfig ReadConfig(AppEndWebApiInfo appEndWebApiInfo)
+		public static ApiConf ReadConfig(this ApiInfo appEndWebApiInfo)
 		{
 			string configFileName = appEndWebApiInfo.GetConfigFileName();
 			if (File.Exists(configFileName))
 			{
 				var json = File.ReadAllText(configFileName, Encoding.UTF8);
-				return JsonSerializer.Deserialize<AppEndWebApiConfig>(json) ?? new AppEndWebApiConfig();
+				return JsonSerializer.Deserialize<ApiConf>(json) ?? new ApiConf();
 			}
-			return new AppEndWebApiConfig();
+			return new ApiConf();
 		}
 
-		public static string GetConfigFileName(this AppEndWebApiInfo appEndWebApiInfo)
+		public static string GetConfigFileName(this ApiInfo appEndWebApiInfo)
 		{
-			return $"workspace/server/{appEndWebApiInfo.ControllerName}.json";
+			return $"workspace/server/{appEndWebApiInfo.ControllerName}.config.json";
 		}
 	}
 
@@ -56,11 +57,12 @@ namespace AppEndWebApiHelper
 		PerUser = 2
 	}
 
-	public enum LogLevel
+	public enum CheckAccessLevel
 	{
-		None = 0,
-		EventsOnly = 1,
-		EventsPlusInputs = 2
+		CheckAccessRules = 0,
+		OpenForAuthenticatedUsers = 1,
+		OpenForAllUsers = 2
 	}
+
 
 }

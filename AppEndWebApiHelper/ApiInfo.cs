@@ -6,7 +6,7 @@ using System.Threading.Tasks;
 
 namespace AppEndWebApiHelper
 {
-	public record AppEndWebApiInfo(string RequestPath, string ControllerName, string ActionName)
+	public record ApiInfo(string RequestPath, string ControllerName, string ActionName)
 	{
 		public string RequestPath { get; set; } = RequestPath;
 		public string ControllerName { get; set; } = ControllerName;
