@@ -21,11 +21,22 @@ namespace AppEndWebApiHelper
 		public CacheLevel CacheLevel { get; set; } = CacheLevel.None;
 		public int CacheSeconds { get; set; } = 0;
 
-		public bool LogEnabled { get; set; } = true;
+		public bool LogEnabled { get; set; } = false;
 	}
 
-	public static class AppEndWebApiConfigExtensions
+	public static class ApiConfExtensions
 	{
+		public static bool IsCachingEnabled(this ApiConf apiConf)
+		{
+			return (apiConf.CacheLevel == CacheLevel.AllUsers || apiConf.CacheLevel == CacheLevel.PerUser) && apiConf.CacheSeconds > 0;
+		}
+
+		public static bool IsLoggingEnabled(this ApiConf apiConf)
+		{
+			return apiConf.LogEnabled;
+		}
+
+
 		public static MemoryCacheEntryOptions GetCacheOptions(this ApiConf apiConf)
 		{
 			return new() { AbsoluteExpirationRelativeToNow = TimeSpan.FromSeconds(apiConf.CacheSeconds) };

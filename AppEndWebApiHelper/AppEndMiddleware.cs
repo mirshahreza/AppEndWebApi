@@ -22,8 +22,9 @@ namespace AppEndWebApiHelper
 			_apiInfo = context.GetAppEndWebApiInfo();
 			bool result = true;
 			string message = "";
-			string actorUserName = "";
 			string rowId = "";
+
+			if (context.IsPostFace()) context.Request.EnableBuffering();
 
 			if (string.IsNullOrEmpty(_apiInfo.ControllerName) || string.IsNullOrEmpty(_apiInfo.ControllerName))
 			{
@@ -32,19 +33,14 @@ namespace AppEndWebApiHelper
 				return;
 			}
 
-			context.User = context.ToClaimsPrincipal();
 			_apiConf = _apiInfo.ReadConfig();
-			_user = context.User.ToUserServerObject();
-			actorUserName = context.User.Identity?.Name?.ToString() ?? "";
+			_user = context.ToUserServerObject();
 
 			try
 			{
-				if (!HasAccess(context))
-				{
-					throw new UnauthorizedAccessException($"Access denied to the {_apiInfo.ControllerName}::{_apiInfo.ActionName}.");
-				}
+				if (!HasAccess(context)) throw new UnauthorizedAccessException($"Access denied to the {_apiInfo.ControllerName}::{_apiInfo.ActionName}.");
 
-				if ((_apiConf.CacheLevel == CacheLevel.AllUsers || _apiConf.CacheLevel == CacheLevel.PerUser) && _apiConf.CacheSeconds > 0)
+				if (_apiConf.IsCachingEnabled())
 				{
 					ExtMemory.SharedMemoryCache.TryGetValue(_apiInfo.GetCacheKey(_apiConf, _user), out CacheObject? cacheObject);
 					if (cacheObject is not null) 
@@ -52,7 +48,7 @@ namespace AppEndWebApiHelper
 						context.Response.StatusCode = StatusCodes.Status200OK;
 						context.Response.ContentType = cacheObject.ContentType;
 						context.Response.Headers.Add("X-Cache", "HIT");
-						await context.Response.WriteAsync(cacheObject.Content);
+						await context.Response.WriteAsync(cacheObject.Content, Encoding.UTF8);
 						return;
 					}
 				}
@@ -69,16 +65,22 @@ namespace AppEndWebApiHelper
 					sw.Stop();
 					rowId = context.Items["RowId"]?.ToString() ?? "";
 
-					var originalBodyStream = context.Response.Body;
-					using (var memoryStream = new MemoryStream())
+					if(_apiConf.IsCachingEnabled() && context.Response.StatusCode == StatusCodes.Status200OK)
 					{
-						context.Response.Body = memoryStream;
-						memoryStream.Position = 0;
-						string responseBody = Encoding.UTF8.GetString(memoryStream.ToArray());
-						context.Response.Body = originalBodyStream;
-						CacheObject cacheObject = new() { Content = responseBody, ContentType = context.Response.ContentType };
-						ExtMemory.SharedMemoryCache.Set(_apiInfo.GetCacheKey(_apiConf, _user), cacheObject, _apiConf.GetCacheOptions());
-					}
+						var originalBodyStream = context.Response.Body;
+						using (var memoryStream = new MemoryStream())
+						{
+							context.Response.Body = memoryStream;
+							memoryStream.Position = 0;
+							context.Response.Body = originalBodyStream;
+							CacheObject cacheObject = new() 
+							{ 
+								Content = Encoding.UTF8.GetString(memoryStream.ToArray()), 
+								ContentType = context.Response.ContentType 
+							};
+							ExtMemory.SharedMemoryCache.Set(_apiInfo.GetCacheKey(_apiConf, _user), cacheObject, _apiConf.GetCacheOptions());
+						}
+					}						
 
 					return Task.CompletedTask;
 				});
@@ -105,7 +107,7 @@ namespace AppEndWebApiHelper
 			{
 				sw.Stop();
 				rowId = context.Items["RowId"]?.ToString() ?? "";
-				if (_apiConf.LogEnabled) AppEndLogger.LogActivity(context, _user, _apiInfo, rowId, result, message, sw.ElapsedMilliseconds.ToIntSafe());
+				if (_apiConf.IsLoggingEnabled()) AppEndLogger.LogActivity(context, _user, _apiInfo, rowId, result, message, sw.ElapsedMilliseconds.ToIntSafe());
 			}
 		}
 
@@ -120,11 +122,11 @@ namespace AppEndWebApiHelper
 			if (_user.IsPubKey) return true;
 			if (_user.Roles is not null && _user.Roles.Any(i => i.IsPubKey == true)) return true;
 
-			// check for denies
+			// check for denied rules
 			if (_apiConf.DeniedUsers is not null && _apiConf.DeniedUsers.Contains(_user.Id)) return false;
 			if (_apiConf.DeniedRoles?.Count > 0 && _user.Roles?.Count > 0 && _apiConf.DeniedRoles.HasIntersect(_user.Roles?.Select(i => i.Id).ToList())) return false;
 
-			// check for access
+			// check for access rules
 			if (_apiConf.AllowedRoles.HasIntersect(_user.Roles?.Select(i => i.Id).ToList())) return true;
 			if (_apiConf.AllowedUsers is not null && _apiConf.AllowedUsers.Contains(_user.Id)) return true;
 
