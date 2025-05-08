@@ -108,7 +108,7 @@ namespace AppEndWebApiHelper
 			AddAppEndStandardHeaders(context, duration, appEndWebApiInfo, StatusCodes.Status401Unauthorized, "Status401Unauthorized", ex.Message);
 		}
 
-		public static void AddUnauthorizedAccessErrorHeaders(this HttpContext context, long duration, Exception ex, ApiInfo appEndWebApiInfo)
+		public static void AddUnauthorizedErrorHeaders(this HttpContext context, long duration, Exception ex, ApiInfo appEndWebApiInfo)
 		{
 			AddAppEndStandardHeaders(context, duration, appEndWebApiInfo, StatusCodes.Status401Unauthorized, "Status401Unauthorized", ex.Message);
 		}
@@ -131,6 +131,11 @@ namespace AppEndWebApiHelper
 			context.Response.Headers.TryAdd("X-Result-StatusCode", statusCode.ToString());
 			context.Response.Headers.TryAdd("X-Result-StatusTitle", statusTitle);
 			context.Response.Headers.TryAdd("X-Result-Message", message);
+		}
+
+		public static void AddCacheHeaders(this HttpContext context)
+		{
+			context.Response.Headers.TryAdd("X-Cache", "HIT");
 		}
 
 		public static string GetClientIp(this HttpContext context)

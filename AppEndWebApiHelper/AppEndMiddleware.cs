@@ -47,7 +47,7 @@ namespace AppEndWebApiHelper
 					{
 						context.Response.StatusCode = StatusCodes.Status200OK;
 						context.Response.ContentType = cacheObject.ContentType;
-						context.Response.Headers.Add("X-Cache", "HIT");
+						context.AddCacheHeaders();
 						await context.Response.WriteAsync(cacheObject.Content, Encoding.UTF8);
 						return;
 					}
@@ -68,18 +68,16 @@ namespace AppEndWebApiHelper
 					if(_apiConf.IsCachingEnabled() && context.Response.StatusCode == StatusCodes.Status200OK)
 					{
 						var originalBodyStream = context.Response.Body;
-						using (var memoryStream = new MemoryStream())
+						using var memoryStream = new MemoryStream();
+						context.Response.Body = memoryStream;
+						memoryStream.Position = 0;
+						context.Response.Body = originalBodyStream;
+						CacheObject cacheObject = new()
 						{
-							context.Response.Body = memoryStream;
-							memoryStream.Position = 0;
-							context.Response.Body = originalBodyStream;
-							CacheObject cacheObject = new() 
-							{ 
-								Content = Encoding.UTF8.GetString(memoryStream.ToArray()), 
-								ContentType = context.Response.ContentType 
-							};
-							ExtMemory.SharedMemoryCache.Set(_apiInfo.GetCacheKey(_apiConf, _user), cacheObject, _apiConf.GetCacheOptions());
-						}
+							Content = Encoding.UTF8.GetString(memoryStream.ToArray()),
+							ContentType = context.Response.ContentType
+						};
+						ExtMemory.SharedMemoryCache.Set(_apiInfo.GetCacheKey(_apiConf, _user), cacheObject, _apiConf.GetCacheOptions());
 					}						
 
 					return Task.CompletedTask;
@@ -93,7 +91,7 @@ namespace AppEndWebApiHelper
 				result = false;
 				message = ex.Message;
 				rowId = context.Items["RowId"]?.ToString() ?? "";
-				await HandleUnauthorizedAccessException(context, sw.ElapsedMilliseconds, ex);
+				await HandleUnauthorizedException(context, sw.ElapsedMilliseconds, ex);
 			}
 			catch (Exception ex)
 			{
@@ -141,11 +139,11 @@ namespace AppEndWebApiHelper
 			context.Response.ContentType = "application/json";
 			await context.Response.WriteAsync("{}");
 		}
-		private async Task HandleUnauthorizedAccessException(HttpContext context, long duration, UnauthorizedAccessException ex)
+		private async Task HandleUnauthorizedException(HttpContext context, long duration, UnauthorizedAccessException ex)
 		{
 			AppEndLogger.LogError($"Error in {_apiInfo.ControllerName}::{_apiInfo.ActionName}: {ex.Message}");
 			context.Response.StatusCode = StatusCodes.Status401Unauthorized;
-			context.AddUnauthorizedAccessErrorHeaders(duration, ex, _apiInfo);
+			context.AddUnauthorizedErrorHeaders(duration, ex, _apiInfo);
 			context.Response.ContentType = "application/json";
 			await context.Response.WriteAsync("{}");
 		}
